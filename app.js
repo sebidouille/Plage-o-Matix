@@ -413,6 +413,11 @@ function updateMarkers() {
             .addTo(map)
             .bindPopup(() => createPopupContent(plage));
         
+        // Créer le graphique quand le popup s'ouvre
+        marker.on('popupopen', () => {
+            setTimeout(() => createTideChart(plage), 200);
+        });
+        
         markers.push(marker);
     });
     
@@ -528,6 +533,8 @@ function createPopupContent(plage) {
     const imageUrl = getPlageImageUrl(nom);
     const imageHtml = imageUrl ? `<img src="${imageUrl}" alt="${nom}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">` : '';
     
+    const chartId = `tide-chart-${nom.replace(/\s/g, '').replace(/'/g, '').replace(/é/g, 'e').replace(/è/g, 'e')}`;
+    
     const content = `
         <div class="popup-header">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -557,13 +564,10 @@ function createPopupContent(plage) {
             </div>
             
             <div class="tide-chart-container">
-                <canvas id="tide-chart-${nom.replace(/\s/g, '').replace(/'/g, '')}"></canvas>
+                <canvas id="${chartId}"></canvas>
             </div>
         </div>
     `;
-    
-    // Créer le graphique après un court délai
-    setTimeout(() => createTideChart(plage), 100);
     
     return content;
 }
@@ -647,12 +651,20 @@ function getTideInfo() {
 
 function createTideChart(plage) {
     const nom = plage.Nom || plage.nom || 'Plage';
-    const canvasId = `tide-chart-${nom.replace(/\s/g, '').replace(/'/g, '')}`;
+    const canvasId = `tide-chart-${nom.replace(/\s/g, '').replace(/'/g, '').replace(/é/g, 'e').replace(/è/g, 'e')}`;
     const canvas = document.getElementById(canvasId);
     
-    if (!canvas) return;
+    if (!canvas) {
+        console.warn(`Canvas ${canvasId} non trouvé pour ${nom}`);
+        return;
+    }
     
     const ctx = canvas.getContext('2d');
+    
+    // Détruire l'ancien graphique s'il existe
+    if (canvas.chart) {
+        canvas.chart.destroy();
+    }
     
     // Récupérer les données de marée du jour
     const now = selectedDateTime || currentDateTime;
@@ -696,22 +708,17 @@ function createTideChart(plage) {
         
         if (bm1 && pm1) {
             if (h < bm1) {
-                // Avant première BM (fin de marée descendante de la nuit)
                 height = hauteurMin + 0.5;
             } else if (h < pm1) {
-                // Entre BM1 et PM1 (montante)
                 const progress = (h - bm1) / (pm1 - bm1);
                 height = hauteurMin + progress * (hauteurMax - hauteurMin);
             } else if (bm2 && h < bm2) {
-                // Entre PM1 et BM2 (descendante)
                 const progress = (h - pm1) / (bm2 - pm1);
                 height = hauteurMax - progress * (hauteurMax - hauteurMin);
             } else if (pm2 && h < pm2) {
-                // Entre BM2 et PM2 (montante)
                 const progress = (h - bm2) / (pm2 - bm2);
                 height = hauteurMin + progress * (hauteurMax - hauteurMin);
             } else if (pm2) {
-                // Après PM2 (descendante)
                 const progress = (h - pm2) / (24 - pm2);
                 height = hauteurMax - progress * (hauteurMax - hauteurMin) * 0.5;
             }
@@ -720,7 +727,7 @@ function createTideChart(plage) {
         data.push(Math.max(hauteurMin, Math.min(hauteurMax, height)));
     }
     
-    new Chart(ctx, {
+    canvas.chart = new Chart(ctx, {
         type: 'line',
         data: {
             labels,
