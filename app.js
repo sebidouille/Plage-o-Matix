@@ -58,6 +58,141 @@ function initMap() {
         maxZoom: 18,
         minZoom: 11
     }).addTo(map);
+    
+    // Ajouter le bouton de géolocalisation
+    addGeolocationButton();
+}
+
+// Ajouter un bouton de géolocalisation
+function addGeolocationButton() {
+    const geoButton = L.control({ position: 'topright' });
+    
+    geoButton.onAdd = function() {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        div.innerHTML = `
+            <a href="#" id="geolocate-btn" title="Me localiser" style="
+                background: white;
+                width: 34px;
+                height: 34px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 20px;
+                text-decoration: none;
+                color: #333;
+                border-radius: 4px;
+            ">📍</a>
+        `;
+        
+        L.DomEvent.on(div.querySelector('#geolocate-btn'), 'click', function(e) {
+            e.preventDefault();
+            geolocateUser();
+        });
+        
+        return div;
+    };
+    
+    geoButton.addTo(map);
+}
+
+// Géolocaliser l'utilisateur
+let userMarker = null;
+
+function geolocateUser() {
+    if (!navigator.geolocation) {
+        alert('La géolocalisation n\'est pas supportée par votre navigateur');
+        return;
+    }
+    
+    showLoading(true);
+    
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            // Supprimer l'ancien marqueur utilisateur
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            // Créer un marqueur pour la position de l'utilisateur
+            const userIcon = L.divIcon({
+                html: `<div style="
+                    width: 20px;
+                    height: 20px;
+                    background: #2196f3;
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+                    animation: pulse 2s infinite;
+                "></div>`,
+                className: '',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            
+            userMarker = L.marker([lat, lon], { icon: userIcon })
+                .addTo(map)
+                .bindPopup('📍 Vous êtes ici');
+            
+            // Centrer la carte sur la position
+            map.setView([lat, lon], 14);
+            
+            // Calculer les distances aux plages
+            calculateDistances(lat, lon);
+            
+            showLoading(false);
+        },
+        (error) => {
+            showLoading(false);
+            let message = 'Erreur de géolocalisation';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Vous avez refusé l\'accès à votre position';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Position indisponible';
+                    break;
+                case error.TIMEOUT:
+                    message = 'La demande de géolocalisation a expiré';
+                    break;
+            }
+            
+            alert(message);
+        }
+    );
+}
+
+// Calculer les distances aux plages
+function calculateDistances(userLat, userLon) {
+    plagesData.forEach(plage => {
+        const lat = parseFloat(plage.Latitude || plage.latitude);
+        const lon = parseFloat(plage.Longitude || plage.longitude);
+        
+        if (lat && lon) {
+            plage.distance = calculateDistance(userLat, userLon, lat, lon);
+        }
+    });
+    
+    console.log('Distances calculées');
+}
+
+// Formule de Haversine pour calculer la distance
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    
+    return distance;
 }
 
 // Chargement des données depuis Google Sheets
@@ -378,15 +513,31 @@ function createPopupContent(plage) {
     const mareeIdeale = plage['Marée idéale'] || plage.maree_ideale || 'inconnue';
     const score = plage.score || 0;
     const color = plage.couleur ? getColorFromName(plage.couleur) : getColorFromScore(score);
-    const emoji = { green: '😃', blue: '🙂', orange: '😐', red: '☹️' }[color];
+    
+    const colorMap = {
+        green: '#4caf50',
+        blue: '#2196f3',
+        orange: '#ff9800',
+        red: '#f44336'
+    };
+    const colorHex = colorMap[color];
     
     const tideInfo = getTideInfo();
     
+    // Vérifier si une image existe pour cette plage
+    const imageUrl = getPlageImageUrl(nom);
+    const imageHtml = imageUrl ? `<img src="${imageUrl}" alt="${nom}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">` : '';
+    
     const content = `
         <div class="popup-header">
-            ${emoji} ${nom}
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: ${colorHex}; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>
+                <span>${nom}</span>
+            </div>
         </div>
         <div class="popup-body">
+            ${imageHtml}
+            
             <div class="popup-section">
                 <h4>Marée idéale</h4>
                 <p>${mareeIdeale}</p>
@@ -415,6 +566,17 @@ function createPopupContent(plage) {
     setTimeout(() => createTideChart(plage), 100);
     
     return content;
+}
+
+// Fonction pour obtenir l'URL de l'image d'une plage
+function getPlageImageUrl(nomPlage) {
+    // Map des images de plages
+    // Pour l'instant, retourne null - vous pourrez ajouter des URLs d'images plus tard
+    const images = {
+        // Exemple: "Porh Morvil": "https://example.com/porh-morvil.jpg"
+    };
+    
+    return images[nomPlage] || null;
 }
 
 function getTideInfo() {
@@ -484,20 +646,78 @@ function getTideInfo() {
 }
 
 function createTideChart(plage) {
-    const canvasId = `tide-chart-${plage.nom.replace(/\s/g, '')}`;
+    const nom = plage.Nom || plage.nom || 'Plage';
+    const canvasId = `tide-chart-${nom.replace(/\s/g, '').replace(/'/g, '')}`;
     const canvas = document.getElementById(canvasId);
     
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
     
-    // Données du graphique (courbe sinusoïdale simplifiée)
+    // Récupérer les données de marée du jour
+    const now = selectedDateTime || currentDateTime;
+    const today = now.toISOString().split('T')[0];
+    const todayTide = mareesData.find(m => m.date && m.date.startsWith(today));
+    
+    if (!todayTide) {
+        console.warn('Pas de données de marée pour aujourd\'hui');
+        return;
+    }
+    
+    // Parser les heures
+    const parseHour = (timeStr) => {
+        if (!timeStr) return null;
+        const match = timeStr.match(/(\d+)h(\d+)/);
+        if (match) {
+            return parseInt(match[1]) + parseInt(match[2]) / 60;
+        }
+        return null;
+    };
+    
+    const bm1 = parseHour(todayTide.bm1_heure || todayTide.bm1);
+    const pm1 = parseHour(todayTide.pm1_heure || todayTide.pm1);
+    const bm2 = parseHour(todayTide.bm2_heure || todayTide.bm2);
+    const pm2 = parseHour(todayTide.pm2_heure || todayTide.pm2);
+    
+    const hauteurMax = parseFloat(todayTide.hauteur_max) || 5.3;
+    const hauteurMin = 0.9;
+    
+    // Construire les points du graphique
     const labels = [];
     const data = [];
+    const currentHour = now.getHours() + now.getMinutes() / 60;
     
-    for (let h = 0; h < 24; h += 2) {
-        labels.push(`${h}h`);
-        data.push(3 + Math.sin((h / 6) * Math.PI) * 2);
+    // Générer 24h de données
+    for (let h = 0; h <= 24; h += 0.5) {
+        labels.push(h % 1 === 0 ? `${Math.floor(h)}h` : '');
+        
+        // Calculer la hauteur à cette heure
+        let height = hauteurMax / 2;
+        
+        if (bm1 && pm1) {
+            if (h < bm1) {
+                // Avant première BM (fin de marée descendante de la nuit)
+                height = hauteurMin + 0.5;
+            } else if (h < pm1) {
+                // Entre BM1 et PM1 (montante)
+                const progress = (h - bm1) / (pm1 - bm1);
+                height = hauteurMin + progress * (hauteurMax - hauteurMin);
+            } else if (bm2 && h < bm2) {
+                // Entre PM1 et BM2 (descendante)
+                const progress = (h - pm1) / (bm2 - pm1);
+                height = hauteurMax - progress * (hauteurMax - hauteurMin);
+            } else if (pm2 && h < pm2) {
+                // Entre BM2 et PM2 (montante)
+                const progress = (h - bm2) / (pm2 - bm2);
+                height = hauteurMin + progress * (hauteurMax - hauteurMin);
+            } else if (pm2) {
+                // Après PM2 (descendante)
+                const progress = (h - pm2) / (24 - pm2);
+                height = hauteurMax - progress * (hauteurMax - hauteurMin) * 0.5;
+            }
+        }
+        
+        data.push(Math.max(hauteurMin, Math.min(hauteurMax, height)));
     }
     
     new Chart(ctx, {
@@ -510,21 +730,41 @@ function createTideChart(plage) {
                 borderColor: '#1e88e5',
                 backgroundColor: 'rgba(30, 136, 229, 0.1)',
                 fill: true,
-                tension: 0.4
+                tension: 0.4,
+                pointRadius: 0
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.parsed.y.toFixed(2)}m`
+                    }
+                }
             },
             scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 12
+                    }
+                },
                 y: {
                     min: 0,
-                    max: 6,
-                    ticks: { callback: value => value + 'm' }
+                    max: Math.ceil(hauteurMax),
+                    ticks: { 
+                        callback: value => value + 'm',
+                        stepSize: 1
+                    }
                 }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
             }
         }
     });
