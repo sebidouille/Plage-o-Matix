@@ -20,7 +20,6 @@ let meteoData = {};
 let currentDateTime = new Date();
 let selectedDateTime = null;
 let userPosition = null;
-let routeLine = null;
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', init);
@@ -99,6 +98,7 @@ function addGeolocationButton() {
 
 // Géolocaliser l'utilisateur
 let userMarker = null;
+let watchId = null;
 
 function geolocateUser() {
     if (!navigator.geolocation) {
@@ -106,9 +106,23 @@ function geolocateUser() {
         return;
     }
     
+    // Si déjà en cours de suivi, arrêter
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        if (userMarker) {
+            map.removeLayer(userMarker);
+            userMarker = null;
+        }
+        userPosition = null;
+        console.log('Suivi de position arrêté');
+        return;
+    }
+    
     showLoading(true);
     
-    navigator.geolocation.getCurrentPosition(
+    // Démarrer le suivi en temps réel
+    watchId = navigator.geolocation.watchPosition(
         (position) => {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
@@ -116,37 +130,37 @@ function geolocateUser() {
             // Sauvegarder la position
             userPosition = { lat, lon };
             
-            // Supprimer l'ancien marqueur utilisateur
-            if (userMarker) {
-                map.removeLayer(userMarker);
+            // Créer ou mettre à jour le marqueur
+            if (!userMarker) {
+                // Première position : créer le marqueur
+                const userIcon = L.divIcon({
+                    html: `<div style="
+                        width: 20px;
+                        height: 20px;
+                        background: #9c27b0;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 0 10px rgba(156, 39, 176, 0.5);
+                        animation: pulse 2s infinite;
+                    "></div>`,
+                    className: '',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                
+                userMarker = L.marker([lat, lon], { icon: userIcon })
+                    .addTo(map)
+                    .bindPopup('📍 Vous êtes ici');
+                
+                // Centrer la carte sur la première position
+                map.setView([lat, lon], 14);
+                
+                showLoading(false);
+                console.log('Suivi de position activé');
+            } else {
+                // Mettre à jour la position du marqueur
+                userMarker.setLatLng([lat, lon]);
             }
-            
-            // Créer un marqueur pour la position de l'utilisateur
-            const userIcon = L.divIcon({
-                html: `<div style="
-                    width: 20px;
-                    height: 20px;
-                    background: #9c27b0;
-                    border: 3px solid white;
-                    border-radius: 50%;
-                    box-shadow: 0 0 10px rgba(156, 39, 176, 0.5);
-                    animation: pulse 2s infinite;
-                "></div>`,
-                className: '',
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-            
-            userMarker = L.marker([lat, lon], { icon: userIcon })
-                .addTo(map)
-                .bindPopup('📍 Vous êtes ici');
-            
-            // Centrer la carte sur la position
-            map.setView([lat, lon], 14);
-            
-            showLoading(false);
-            
-            console.log('Position enregistrée:', userPosition);
         },
         (error) => {
             showLoading(false);
@@ -165,48 +179,19 @@ function geolocateUser() {
             }
             
             alert(message);
+            
+            // Nettoyer en cas d'erreur
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+        },
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 5000
         }
     );
-}
-
-// Tracer un itinéraire jusqu'à la plage
-function drawRouteToBeach(beachLat, beachLon, beachName) {
-    if (!userPosition) {
-        alert('Veuillez d\'abord activer la géolocalisation (bouton 📍)');
-        return;
-    }
-    
-    // Supprimer l'ancien tracé s'il existe
-    if (routeLine) {
-        map.removeLayer(routeLine);
-    }
-    
-    // Tracer une ligne simple (à vol d'oiseau)
-    routeLine = L.polyline([
-        [userPosition.lat, userPosition.lon],
-        [beachLat, beachLon]
-    ], {
-        color: '#9c27b0',
-        weight: 4,
-        opacity: 0.7,
-        dashArray: '10, 10'
-    }).addTo(map);
-    
-    // Calculer la distance
-    const distance = calculateDistance(userPosition.lat, userPosition.lon, beachLat, beachLon);
-    
-    // Ajuster la vue pour voir tout le trajet
-    map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-    
-    return distance;
-}
-
-// Effacer le tracé
-function clearRoute() {
-    if (routeLine) {
-        map.removeLayer(routeLine);
-        routeLine = null;
-    }
 }
 
 // Formule de Haversine pour calculer la distance
@@ -560,31 +545,6 @@ function createPopupContent(plage) {
     
     const chartId = `tide-chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Bouton itinéraire si l'utilisateur est géolocalisé
-    const lat = parseFloat(plage.Latitude || plage.latitude);
-    const lon = parseFloat(plage.Longitude || plage.longitude);
-    
-    let routeButton = '';
-    if (userPosition) {
-        routeButton = `
-            <div style="margin-top: 12px; text-align: center;">
-                <button onclick="drawRouteToBeach(${lat}, ${lon}, '${nom}')" style="
-                    background: #9c27b0;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-                ">
-                    🗺️ Afficher le trajet
-                </button>
-            </div>
-        `;
-    }
-    
     const content = `
         <div class="popup-header">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -616,8 +576,6 @@ function createPopupContent(plage) {
             <div class="tide-chart-container">
                 <canvas id="${chartId}"></canvas>
             </div>
-            
-            ${routeButton}
             
             <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-size: 12px; color: #666; font-style: italic;">
                 Si c'est pas bien, Allez chez H
