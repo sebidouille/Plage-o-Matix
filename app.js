@@ -597,9 +597,17 @@ function createPopupContent(plage) {
 // Fonction pour obtenir l'URL de l'image d'une plage
 function getPlageImageUrl(nomPlage) {
     // Map des images de plages
-    // Pour l'instant, retourne null - vous pourrez ajouter des URLs d'images plus tard
     const images = {
-        // Exemple: "Porh Morvil": "https://example.com/porh-morvil.jpg"
+        "Plage des Grands Sables": "images/Les-grands-sables.jpg",
+        "Les Grands Sables": "images/Les-grands-sables.jpg",
+        "Port Mélite": "images/port-melite.jpg",
+        "Côte d'Héno": "images/cote-d-heno.jpg",
+        "Plage d'Héno": "images/cote-d-heno.jpg",
+        "Poulziorec": "images/poulziorec.jpg",
+        "Sables Rouges": "images/les-sables-rouges.jpg",
+        "Les Sables Rouges": "images/les-sables-rouges.jpg",
+        "Plage du WWF": "images/plage-du-wwf.jpg",
+        "Port Coustic": "images/port-coustic.jpg"
     };
     
     return images[nomPlage] || null;
