@@ -26,26 +26,28 @@ body {
 /* En-tête */
 #header {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(135deg, var(--ocean-blue), var(--deep-blue));
-    color: white;
-    padding: 12px 16px;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #333;
+    padding: 8px 16px;
     box-shadow: 0 2px 8px var(--shadow);
     z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    border-radius: 20px;
+    pointer-events: none;
 }
 
 #datetime-display {
     text-align: center;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 500;
-    padding: 8px 16px;
+    padding: 4px 8px;
     border-radius: 8px;
     transition: background 0.3s;
+    pointer-events: auto;
 }
 
 #datetime-display.clickable {
@@ -53,18 +55,18 @@ body {
 }
 
 #datetime-display.clickable:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.3);
 }
 
 #current-date {
     display: block;
-    font-size: 14px;
+    font-size: 12px;
     opacity: 0.9;
 }
 
 #current-time {
     display: block;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 600;
     margin-top: 2px;
 }
@@ -72,7 +74,7 @@ body {
 /* Carte */
 #map {
     position: absolute;
-    top: 70px;
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
