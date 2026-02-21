@@ -596,6 +596,8 @@ function createPopupContent(plage) {
 
 // Fonction pour obtenir l'URL de l'image d'une plage
 function getPlageImageUrl(nomPlage) {
+    console.log('Recherche image pour:', JSON.stringify(nomPlage), 'longueur:', nomPlage.length);
+    
     // Map des images de plages
     const images = {
         "Plage des Grands Sables": "images/les-grands-sables.jpg",
@@ -603,14 +605,44 @@ function getPlageImageUrl(nomPlage) {
         "Port Mélite": "images/port-melite.jpg",
         "Côte d'Héno": "images/cote-d-heno.jpg",
         "Plage d'Héno": "images/cote-d-heno.jpg",
+        "Cote d'Héno": "images/cote-d-heno.jpg",
+        "Cote d'Heno": "images/cote-d-heno.jpg",
+        "Plage de la Côte d'Héno": "images/cote-d-heno.jpg",
         "Poulziorec": "images/poulziorec.jpg",
         "Sables Rouges": "images/les-sables-rouges.jpg",
         "Les Sables Rouges": "images/les-sables-rouges.jpg",
         "Plage du WWF": "images/plage-du-wwf.jpg",
-        "Port Coustic": "images/port-coustic.jpg"
+        "Port Coustic": "images/port-coustic.jpg",
+        "Port-Coustic": "images/port-coustic.jpg",
+        "Plage de Port Coustic": "images/port-coustic.jpg"
     };
     
-    return images[nomPlage] || null;
+    // Recherche exacte d'abord
+    let result = images[nomPlage];
+    
+    // Si pas trouvé, essayer sans accents et en minuscules
+    if (!result) {
+        const normalized = nomPlage
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim();
+        
+        console.log('Nom normalisé:', normalized);
+        
+        // Mapping alternatif sans accents
+        const alternativeImages = {
+            "cote d'heno": "images/cote-d-heno.jpg",
+            "plage d'heno": "images/cote-d-heno.jpg",
+            "plage de la cote d'heno": "images/cote-d-heno.jpg"
+        };
+        
+        result = alternativeImages[normalized];
+    }
+    
+    console.log('Image trouvée:', result);
+    
+    return result || null;
 }
 
 function getTideInfo() {
