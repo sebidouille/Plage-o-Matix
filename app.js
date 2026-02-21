@@ -404,6 +404,8 @@ function validateDateTime() {
 }
 
 // Mise à jour des marqueurs
+let selectedMarker = null;
+
 function updateMarkers() {
     // Supprimer les anciens marqueurs
     markers.forEach(m => map.removeLayer(m));
@@ -422,12 +424,46 @@ function updateMarkers() {
         
         // Utiliser la couleur des recommandations ou calculer le score
         const color = plage.couleur ? getColorFromName(plage.couleur) : getColorFromScore(plage.score || 50);
-        const icon = createCustomIcon(color);
+        const icon = createCustomIcon(color, false);
         
         const marker = L.marker([lat, lon], { icon })
             .addTo(map)
-            .bindPopup(() => createPopupContent(plage));
+            .bindPopup(() => createPopupContent(plage), {
+                autoPan: false,  // Ne pas recentrer la carte
+                closeButton: false  // Pas de bouton X (on ferme au clic)
+            });
         
+        // Changer le liseré au clic
+        marker.on('click', function() {
+            // Réinitialiser l'ancien marqueur sélectionné
+            if (selectedMarker && selectedMarker !== marker) {
+                const oldColor = selectedMarker.plageColor;
+                selectedMarker.setIcon(createCustomIcon(oldColor, false));
+            }
+            
+            // Mettre le nouveau marqueur en violet
+            marker.setIcon(createCustomIcon(color, true));
+            selectedMarker = marker;
+            marker.plageColor = color;
+        });
+        
+        // Fermer le popup au clic dessus
+        marker.on('popupopen', function() {
+            const popup = marker.getPopup();
+            const popupElement = popup.getElement();
+            if (popupElement) {
+                popupElement.addEventListener('click', function() {
+                    map.closePopup();
+                    // Réinitialiser le marqueur
+                    if (selectedMarker === marker) {
+                        marker.setIcon(createCustomIcon(color, false));
+                        selectedMarker = null;
+                    }
+                });
+            }
+        });
+        
+        marker.plageColor = color;
         markers.push(marker);
     });
     
@@ -496,7 +532,7 @@ function getColorFromScore(score) {
     return 'red';
 }
 
-function createCustomIcon(color) {
+function createCustomIcon(color, selected = false) {
     const colors = {
         green: '#4caf50',
         blue: '#2196f3',
@@ -504,12 +540,15 @@ function createCustomIcon(color) {
         red: '#f44336'
     };
     
+    const borderColor = selected ? '#9c27b0' : 'white';
+    const borderWidth = selected ? '4px' : '3px';
+    
     const html = `
         <div style="
             width: 24px;
             height: 24px;
             background: ${colors[color]};
-            border: 3px solid white;
+            border: ${borderWidth} solid ${borderColor};
             border-radius: 50%;
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         "></div>
@@ -555,29 +594,19 @@ function createPopupContent(plage) {
         <div class="popup-body">
             ${imageHtml}
             
-            <div class="popup-section">
-                <h4>Marée idéale</h4>
-                <p>${mareeIdeale}</p>
-            </div>
-            
-            <div class="popup-section">
-                <h4>Marée actuelle</h4>
-                <div class="tide-status">
-                    <span class="tide-arrow">${tideInfo.arrow}</span>
-                    <span>${tideInfo.status} (${tideInfo.height}m)</span>
-                </div>
-            </div>
-            
-            <div class="popup-section">
-                <p>🔺 Max haut: ${tideInfo.max_high}m</p>
-                <p>🔻 Max bas: ${tideInfo.max_low}m</p>
+            <div style="font-size: 13px; line-height: 1.6;">
+                <p style="margin: 8px 0;"><strong>Marée idéale :</strong> ${mareeIdeale}</p>
+                <p style="margin: 8px 0;"><strong>Marée actuelle :</strong> ${tideInfo.arrow} ${tideInfo.status} (${tideInfo.height}m)</p>
+                <p style="margin: 8px 0; font-size: 12px; color: #666;">
+                    🔺 Max haut: ${tideInfo.max_high}m &nbsp;•&nbsp; 🔻 Max bas: ${tideInfo.max_low}m
+                </p>
             </div>
             
             <div class="tide-chart-container">
                 <canvas id="${chartId}"></canvas>
             </div>
             
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #eee; text-align: center; font-size: 12px; color: #666; font-style: italic;">
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; text-align: center; font-size: 11px; color: #666; font-style: italic;">
                 Si c'est pas bien, Allez chez H
             </div>
         </div>
@@ -772,7 +801,7 @@ function createTideChartInCanvas(canvas, plage) {
                     borderColor: '#1e88e5',
                     backgroundColor: 'rgba(30, 136, 229, 0.1)',
                     fill: true,
-                    tension: 0.4,
+                    tension: 0.6,
                     pointRadius: 0
                 }]
             },
