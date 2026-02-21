@@ -633,6 +633,8 @@ function getPlageImageUrl(nomPlage) {
         // Mapping alternatif sans accents
         const alternativeImages = {
             "cote d'heno": "images/cote-d-heno.jpg",
+            "cote d'heno": "images/cote-d-heno.jpg",
+            "plage d'heno": "images/cote-d-heno.jpg",
             "plage d'heno": "images/cote-d-heno.jpg",
             "plage de la cote d'heno": "images/cote-d-heno.jpg"
         };
